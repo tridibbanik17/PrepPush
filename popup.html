@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PrepPush</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #0b1220;
+      --surface: #131c2e;
+      --surface-2: #1a2740;
+      --border: #2a3a52;
+      --border-focus: #22c55e;
+      --text: #e8eef7;
+      --text-muted: #8fa3bf;
+      --text-dim: #5c7290;
+      --accent: #22c55e;
+      --accent-hover: #16a34a;
+      --accent-soft: #052e16;
+      --accent-border: #166534;
+      --accent-text: #86efac;
+      --on-accent: #052e16;
+      --analysis-label: #4ade80;
+      --analysis-trick: #dcfce7;
+      --link: #4ade80;
+      --form-label: #cbd5e1;
+      --hover-border: #3d5270;
+      --hover-overlay: rgba(255, 255, 255, 0.04);
+      --btn-primary-top: #2dd46a;
+      --btn-primary-bottom: #22c55e;
+      --btn-test-hover-bg: #064e3b;
+      --btn-test-hover-text: #bbf7d0;
+      --focus-ring: rgba(34, 197, 94, 0.2);
+      --danger-bg: #2d0a0a;
+      --danger-border: #7f1d1d;
+      --danger-text: #fca5a5;
+      --radius: 8px;
+      --radius-sm: 6px;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+      --transition: 0.18s ease;
+    }
+
+    [data-theme="light"] {
+      color-scheme: light;
+      --bg: #f1f5f9;
+      --surface: #ffffff;
+      --surface-2: #f8fafc;
+      --border: #cbd5e1;
+      --border-focus: #16a34a;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #64748b;
+      --accent: #16a34a;
+      --accent-hover: #15803d;
+      --accent-soft: #ecfdf5;
+      --accent-border: #86efac;
+      --accent-text: #14532d;
+      --on-accent: #ffffff;
+      --analysis-label: #15803d;
+      --analysis-trick: #334155;
+      --link: #15803d;
+      --form-label: #334155;
+      --hover-border: #94a3b8;
+      --hover-overlay: rgba(15, 23, 42, 0.06);
+      --btn-primary-top: #22c55e;
+      --btn-primary-bottom: #16a34a;
+      --btn-test-hover-bg: #dcfce7;
+      --btn-test-hover-text: #14532d;
+      --focus-ring: rgba(22, 163, 74, 0.22);
+      --danger-bg: #fef2f2;
+      --danger-border: #fecaca;
+      --danger-text: #b91c1c;
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08);
+    }
+
+    body {
+      width: 360px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      position: relative;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 44px 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+    }
+    .theme-toggle {
+      position: absolute;
+      top: 50%;
+      right: 10px;
+      transform: translateY(-50%);
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface-2);
+      color: var(--text-muted);
+      font-size: 15px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color var(--transition), border-color var(--transition), background var(--transition);
+    }
+    .theme-toggle:hover {
+      color: var(--text);
+      border-color: var(--hover-border);
+      background: var(--hover-overlay);
+    }
+    .theme-toggle:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .logo {
+      width: 32px; height: 32px;
+      background: linear-gradient(145deg, #34d399, var(--accent));
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      font-family: ui-monospace, 'Cascadia Code', 'Courier New', monospace;
+      font-weight: 800; font-size: 11px; color: var(--on-accent);
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+    }
+    .header-text h1 { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -0.2px; }
+    .header-text p  { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── STATUS BAR ── */
+    .status-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--text-dim); flex-shrink: 0;
+      transition: background var(--transition), box-shadow var(--transition);
+    }
+    .status-dot.active   { background: var(--accent); box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25); animation: pulse 2s infinite; }
+    .status-dot.inactive { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
+    #status-text { font-size: 11px; color: var(--text-muted); }
+
+    /* ── TABS ── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      padding: 6px 10px 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .tab {
+      flex: 1;
+      padding: 10px 8px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-dim);
+      cursor: pointer;
+      border: 1px solid transparent;
+      border-bottom: none;
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+      transition: color var(--transition), background var(--transition);
+      user-select: none;
+    }
+    .tab:hover:not(.active) {
+      color: var(--text-muted);
+      background: var(--hover-overlay);
+    }
+    .tab.active {
+      color: var(--accent-text);
+      background: var(--bg);
+      border-color: var(--border);
+      position: relative;
+    }
+    .tab.active::after {
+      content: '';
+      position: absolute;
+      left: 0; right: 0; bottom: -1px;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 2px 2px 0 0;
+    }
+
+    /* ── TAB PANELS ── */
+    .panel { display: none; padding: 14px 16px 16px; }
+    .panel.active { display: block; }
+
+    /* ── SECTION LABEL ── */
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    /* ── SUBMISSION CARD ── */
+    .submission-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow-sm);
+    }
+    .submission-card.empty { text-align: center; padding: 22px 12px; }
+    .empty-icon { font-size: 24px; margin-bottom: 8px; opacity: 0.85; }
+    .empty-text { font-size: 11px; color: var(--text-muted); line-height: 1.55; }
+
+    .problem-name {
+      font-size: 13px; font-weight: 600; color: var(--text);
+      margin-bottom: 10px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+    .stat { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 9px; }
+    .stat-label { font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+    .stat-value { font-family: ui-monospace, 'Cascadia Code', 'Courier New', monospace; font-size: 12px; font-weight: 700; color: var(--accent); }
+    .stat-value.neutral { color: var(--text-muted); }
+    .stat-value.na { color: var(--text-dim); }
+
+    .timestamp { font-size: 10px; color: var(--text-dim); margin-top: 8px; text-align: right; }
+
+    .analysis-box {
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-border);
+      border-radius: var(--radius-sm);
+      padding: 10px;
+      margin-top: 10px;
+    }
+    .analysis-label {
+      font-size: 9px; font-weight: 700; color: var(--analysis-label);
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px;
+    }
+    .analysis-trick {
+      font-size: 11px; color: var(--analysis-trick); line-height: 1.5; margin-bottom: 6px;
+    }
+    .analysis-meta {
+      font-family: ui-monospace, 'Cascadia Code', 'Courier New', monospace;
+      font-size: 10px; color: var(--accent-text);
+    }
+    .analysis-pending {
+      font-size: 10px; color: var(--text-muted); margin-top: 8px; font-style: italic;
+    }
+
+    /* ── PUSH STATUS ── */
+    .push-status {
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      line-height: 1.45;
+      display: none;
+    }
+    .push-status.success {
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-border);
+      color: var(--accent-text);
+      display: block;
+    }
+    .push-status.error {
+      background: var(--danger-bg);
+      border: 1px solid var(--danger-border);
+      color: var(--danger-text);
+      display: block;
+    }
+    .push-status.loading {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      display: block;
+    }
+    .push-status a,
+    .push-status-github-btn {
+      color: var(--link);
+      font-size: 11px;
+      display: block;
+      margin-top: 5px;
+      text-decoration: none;
+      word-break: break-all;
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      text-align: left;
+      font-family: inherit;
+    }
+    .push-status a:hover,
+    .push-status-github-btn:hover { text-decoration: underline; }
+
+    /* ── SETTINGS TAB ── */
+    #tab-settings {
+      max-height: 470px;
+      overflow-y: auto;
+      padding: 12px 14px 16px;
+    }
+    #tab-settings::-webkit-scrollbar { width: 5px; }
+    #tab-settings::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .settings-actions {
+      margin-top: 12px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+    .settings-actions .btn-primary { margin-top: 0; }
+
+    .settings-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow-sm);
+    }
+    .settings-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .settings-card-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .settings-card-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      line-height: 1.45;
+    }
+    .settings-card-sub strong { color: var(--text); font-weight: 600; }
+    .settings-card-link {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--accent);
+      text-decoration: none;
+      white-space: nowrap;
+      flex-shrink: 0;
+      padding: 4px 8px;
+      border: 1px solid var(--accent-border);
+      border-radius: 999px;
+      background: var(--accent-soft);
+      transition: background var(--transition), border-color var(--transition), color var(--transition);
+    }
+    .settings-card-link:hover {
+      color: var(--accent-text);
+      border-color: var(--accent);
+      background: var(--btn-test-hover-bg);
+    }
+
+    /* ── SETUP DROPDOWN (disclosure) ── */
+    .disclosure {
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+      overflow: hidden;
+    }
+    .disclosure-trigger {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+      padding: 10px 12px;
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+      transition: background var(--transition);
+    }
+    .disclosure-trigger::-webkit-details-marker { display: none; }
+    .disclosure-trigger::marker { content: ''; display: none; }
+    .disclosure:hover .disclosure-trigger { background: var(--surface-2); }
+    .disclosure[open] .disclosure-trigger {
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+    }
+    .disclosure-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .disclosure-chevron {
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: transform 0.22s ease, background var(--transition), border-color var(--transition);
+    }
+    .disclosure-chevron::before {
+      content: '';
+      width: 0;
+      height: 0;
+      border-top: 4px solid transparent;
+      border-bottom: 4px solid transparent;
+      border-left: 5px solid var(--text-muted);
+      margin-left: 2px;
+      transition: border-color var(--transition);
+    }
+    .disclosure[open] .disclosure-chevron {
+      transform: rotate(90deg);
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+    }
+    .disclosure[open] .disclosure-chevron::before { border-left-color: var(--accent-text); }
+    .disclosure-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .disclosure-hint {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      flex-shrink: 0;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .disclosure[open] .disclosure-hint {
+      color: var(--accent-text);
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
+    }
+    .disclosure-panel {
+      padding: 10px 12px 12px;
+      font-size: 11px;
+      line-height: 1.55;
+      color: var(--text-muted);
+    }
+    .disclosure-panel ol {
+      margin: 0 0 0 18px;
+      padding: 0;
+    }
+    .disclosure-panel li { margin-bottom: 6px; }
+    .disclosure-panel li:last-child { margin-bottom: 0; }
+    .disclosure-panel strong { color: var(--text); font-weight: 600; }
+
+    .settings-field { margin-bottom: 10px; }
+    .settings-field:last-of-type { margin-bottom: 0; }
+
+    .settings-status {
+      font-size: 11px;
+      margin: 8px 0 0;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      line-height: 1.4;
+      display: none;
+    }
+    .settings-status.success {
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-border);
+      color: var(--accent-text);
+      display: block;
+    }
+    .settings-status.error {
+      background: var(--danger-bg);
+      border: 1px solid var(--danger-border);
+      color: var(--danger-text);
+      display: block;
+    }
+
+    .settings-btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .settings-btn-row .btn { flex: 1; margin-top: 0; }
+
+    .settings-check {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 12px 0 0;
+      padding: 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      user-select: none;
+      transition: border-color var(--transition), background var(--transition);
+    }
+    .settings-check:hover {
+      border-color: var(--hover-border);
+      background: var(--hover-overlay);
+    }
+    .settings-check input {
+      accent-color: var(--accent);
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+      margin-top: 2px;
+      cursor: pointer;
+    }
+    .settings-check-text {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .settings-check-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.35;
+    }
+    .settings-check-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.45;
+      margin: 0;
+      padding: 0;
+    }
+
+    .settings-footer {
+      margin-top: 12px;
+      text-align: center;
+    }
+
+    /* ── SETTINGS FORM (shared) ── */
+    .form-group { margin-bottom: 12px; }
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--form-label);
+      margin-bottom: 6px;
+    }
+    .form-label span { font-size: 11px; color: var(--text-muted); font-weight: 400; margin-left: 4px; }
+    .form-input {
+      width: 100%;
+      padding: 9px 11px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-size: 12px;
+      font-family: ui-monospace, 'Cascadia Code', 'Courier New', monospace;
+      transition: border-color var(--transition), box-shadow var(--transition);
+      outline: none;
+    }
+    .form-input:hover { border-color: var(--hover-border); }
+    .form-input:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+    .form-input::placeholder { color: var(--text-dim); }
+    .form-hint { font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.45; }
+
+    .input-row { display: flex; gap: 6px; }
+    .input-row .form-input { flex: 1; }
+    .toggle-btn {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 9px 11px;
+      color: var(--text-muted);
+      font-size: 12px;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background var(--transition), border-color var(--transition), color var(--transition);
+    }
+    .toggle-btn:hover {
+      background: var(--surface-2);
+      border-color: var(--hover-border);
+      color: var(--text);
+    }
+
+    /* ── BUTTONS ── */
+    .btn {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      transition:
+        background var(--transition),
+        border-color var(--transition),
+        color var(--transition),
+        box-shadow var(--transition),
+        transform 0.12s ease;
+    }
+    .btn:active:not(:disabled) { transform: scale(0.985); }
+    .btn:disabled { cursor: not-allowed; opacity: 0.55; }
+
+    .btn-primary {
+      background: linear-gradient(180deg, var(--btn-primary-top) 0%, var(--btn-primary-bottom) 100%);
+      color: var(--on-accent);
+      border-color: var(--accent-hover);
+      box-shadow: var(--shadow-sm);
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(180deg, var(--accent) 0%, var(--accent-hover) 100%);
+      box-shadow: 0 0 0 3px var(--focus-ring), var(--shadow-sm);
+    }
+    .btn-primary:active:not(:disabled) {
+      background: var(--accent-hover);
+      color: var(--on-accent);
+    }
+
+    .btn-test {
+      background: var(--accent-soft);
+      color: var(--accent-text);
+      border-color: var(--accent-border);
+    }
+    .btn-test:hover:not(:disabled) {
+      background: var(--btn-test-hover-bg);
+      border-color: var(--accent);
+      color: var(--btn-test-hover-text);
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+    .btn-test:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+    .btn-test:active:not(:disabled) {
+      background: var(--accent-border);
+      color: var(--on-accent);
+    }
+
+    .btn-ghost {
+      background: var(--surface);
+      color: var(--text-muted);
+      border-color: var(--border);
+      margin-top: 8px;
+    }
+    .btn-ghost:hover:not(:disabled) {
+      background: var(--surface-2);
+      border-color: var(--hover-border);
+      color: var(--text);
+    }
+    .btn-ghost:active:not(:disabled) {
+      background: var(--bg);
+      color: var(--text);
+    }
+    .btn-ghost + .btn-ghost { margin-top: 8px; }
+
+    .btn-link-danger {
+      width: auto;
+      display: inline-block;
+      padding: 7px 12px;
+      margin-top: 0;
+      font-size: 11px;
+      font-weight: 500;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: var(--radius-sm);
+    }
+    .btn-link-danger:hover:not(:disabled) {
+      background: var(--danger-bg);
+      border-color: var(--danger-border);
+      color: var(--danger-text);
+    }
+
+    .btn-stack { display: flex; flex-direction: column; gap: 0; margin-top: 4px; }
+
+    .footer {
+      padding: 8px 16px 12px;
+      text-align: center;
+      font-size: 10px;
+      color: var(--text-dim);
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+  </style>
+</head>
+<body data-theme="dark">
+
+  <div class="header">
+    <div class="logo">PP</div>
+    <div class="header-text">
+      <h1>PrepPush</h1>
+      <p>HackerRank → GitHub, automated</p>
+    </div>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light mode" title="Switch to light mode">☀️</button>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">Checking...</span>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="submissions">📋 Submissions</div>
+    <div class="tab" data-tab="settings">⚙️ Settings</div>
+  </div>
+
+  <!-- ── SUBMISSIONS TAB ── -->
+  <div class="panel active" id="tab-submissions">
+
+    <div class="section-label">Last Captured Submission</div>
+    <div id="submission-card" class="submission-card empty">
+      <div class="empty-icon">⏳</div>
+      <div class="empty-text">No submission captured yet.<br/>Submit a solution on HackerRank.</div>
+    </div>
+
+    <div class="section-label">GitHub Push Status</div>
+    <div id="push-status" class="push-status loading" style="display:none"></div>
+
+    <div class="btn-stack">
+      <button type="button" class="btn btn-ghost" id="clear-btn">Clear last submission</button>
+    </div>
+  </div>
+
+  <!-- ── SETTINGS TAB ── -->
+  <div class="panel" id="tab-settings">
+
+    <section class="settings-card" id="settings-github-card">
+      <div class="settings-card-header">
+        <div>
+          <div class="settings-card-title">GitHub</div>
+          <div class="settings-card-sub">Pushes to <strong>hackerrank-solutions</strong> (auto-created on first push)</div>
+        </div>
+        <a
+          class="settings-card-link"
+          id="generate-token-btn"
+          href="https://github.com/settings/tokens/new?scopes=repo&amp;description=PrepPush"
+          target="_blank"
+          rel="noopener"
+        >New token →</a>
+      </div>
+
+      <details class="disclosure" id="setup-guide">
+        <summary class="disclosure-trigger" id="setup-guide-toggle">
+          <span class="disclosure-left">
+            <span class="disclosure-chevron" aria-hidden="true"></span>
+            <span class="disclosure-title">First-time setup</span>
+          </span>
+          <span class="disclosure-hint">3 steps</span>
+        </summary>
+        <div class="disclosure-panel" id="setup-guide-body">
+          <ol>
+            <li>Open <strong>New token</strong> (repo scope is pre-selected)</li>
+            <li>Generate token on GitHub and copy it</li>
+            <li>Paste below → <strong>Test GitHub</strong></li>
+          </ol>
+        </div>
+      </details>
+
+      <div class="settings-field">
+        <label class="form-label" for="github-token">Personal access token</label>
+        <div class="input-row">
+          <input type="password" class="form-input" id="github-token" placeholder="ghp_…" autocomplete="off"/>
+          <button type="button" class="toggle-btn" id="toggle-token" title="Show token">👁</button>
+        </div>
+      </div>
+
+      <div id="connection-status" class="settings-status"></div>
+
+      <div class="settings-btn-row">
+        <button type="button" class="btn btn-test" id="test-btn">Test GitHub</button>
+      </div>
+    </section>
+
+    <section class="settings-card" id="settings-ai-card">
+      <div class="settings-card-header">
+        <div>
+          <div class="settings-card-title">AI analysis</div>
+          <div class="settings-card-sub">Free Gemini · trick, time &amp; space in each file</div>
+        </div>
+        <a
+          class="settings-card-link"
+          id="get-gemini-key-btn"
+          href="https://aistudio.google.com/apikey"
+          target="_blank"
+          rel="noopener noreferrer"
+        >Get API key →</a>
+      </div>
+
+      <div class="settings-field">
+        <label class="form-label" for="gemini-key">Gemini API key</label>
+        <div class="input-row">
+          <input type="password" class="form-input" id="gemini-key" placeholder="AIza…" autocomplete="off"/>
+          <button type="button" class="toggle-btn" id="toggle-gemini" title="Show key">👁</button>
+        </div>
+        <div class="form-hint">Stored locally. Uses Gemini 3.1 Flash Lite (free tier, ~500/day).</div>
+      </div>
+
+      <label class="settings-check">
+        <input type="checkbox" id="auto-analyze" checked/>
+        <span class="settings-check-text">
+          <span class="settings-check-title">Auto-analyze accepted submissions</span>
+          <span class="settings-check-hint">Adds trick, time, and space to each GitHub file.</span>
+          <span class="settings-check-hint">Turn off to push code only (no AI).</span>
+        </span>
+      </label>
+
+      <div id="ai-status" class="settings-status"></div>
+
+      <div class="settings-btn-row">
+        <button type="button" class="btn btn-test" id="test-ai-btn">Test AI</button>
+      </div>
+    </section>
+
+    <div class="settings-footer">
+      <button type="button" class="btn btn-link-danger" id="clear-settings-btn">Clear all settings</button>
+    </div>
+  </div>
+
+  <div class="footer" id="app-footer">PrepPush</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
