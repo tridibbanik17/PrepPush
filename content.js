@@ -328,6 +328,7 @@ function isSubstantiveCode(code) {
   if (/if\s+__name__\s*==/m.test(t)) return true;
   if (/\binput\s*\(/m.test(t) && /\bprint\s*\(/m.test(t)) return true;
   if (/\bdef\s+\w+/m.test(t)) return t.length >= 30;
+  if (looksLikeSqlCode(t)) return true;
   const lines = t.split('\n').filter((l) => l.trim()).length;
   return lines >= 3 && t.length >= 35;
 }
@@ -710,8 +711,21 @@ function submissionIdFromPage() {
   return m ? m[1] : null;
 }
 
+function looksLikeSqlCode(code) {
+  const t = String(code || '').trim();
+  if (!t) return false;
+  if (/^\s*\/\*[\s\S]*?\*\/\s*(select|insert|update|delete|with)\b/i.test(t)) return true;
+  return /\b(select|insert|update|delete|with)\b[\s\S]*\b(from|into|set|values)\b/i.test(t);
+}
+
 function detectLanguageFromPage(code) {
   const snippet = (document.body?.innerText || '').slice(0, 8000);
+  if (/\bdb2\b/i.test(snippet)) return 'db2';
+  if (/\bmysql\b/i.test(snippet)) return 'mysql';
+  if (/\b(postgresql|postgres)\b/i.test(snippet)) return 'postgresql';
+  if (/\boracle\b/i.test(snippet)) return 'oracle';
+  if (/\bsql\b/i.test(snippet)) return 'sql';
+  if (looksLikeSqlCode(code)) return 'sql';
   if (/python\s*3/i.test(snippet)) return 'python3';
   if (/python/i.test(snippet)) return 'python3';
   if (/java\b/i.test(snippet)) return 'java';
@@ -720,7 +734,7 @@ function detectLanguageFromPage(code) {
   if (/\binput\s*\(/.test(code || '')) return 'python3';
   if (/\bdef\s+\w+/.test(code || '')) return 'python3';
   if (/\bpublic\s+class\b/.test(code || '')) return 'java';
-  return 'python3';
+  return 'unknown';
 }
 
 function ppLog(msg, level = 'log') {

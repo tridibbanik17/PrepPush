@@ -195,21 +195,6 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 
-function inferLanguage(submission) {
-  const raw = (submission?.language || '').toLowerCase().trim();
-  if (raw && EXTENSIONS[raw]) return raw;
-
-  const code = submission?.code || '';
-  if (/if\s+__name__/m.test(code) || /\binput\s*\(/m.test(code)) return 'python3';
-  if (/\bdef\s+\w+/m.test(code)) return 'python3';
-  if (/\bpublic\s+class\b/m.test(code)) return 'java';
-  if (/\b#include\s*</m.test(code)) return 'cpp';
-  if (/\bfunction\s+\w+/m.test(code) && /\bconst\s+/m.test(code)) return 'javascript';
-  if (/\bfn\s+\w+/m.test(code)) return 'rust';
-
-  return 'python3';
-}
-
 // ─── LANGUAGE → FILE EXTENSION MAP ──────────────────────────────────────────
 const EXTENSIONS = {
   python3: 'py', python: 'py',
@@ -231,7 +216,65 @@ const EXTENSIONS = {
   perl: 'pl',
   bash: 'sh',
   sql: 'sql',
+  db2: 'sql',
+  mysql: 'sql',
+  mariadb: 'sql',
+  oracle: 'sql',
+  postgresql: 'sql',
+  postgres: 'sql',
+  mssql: 'sql',
+  sqlite: 'sql',
+  plsql: 'sql',
 };
+
+function normalizeHrLanguage(raw) {
+  const t = String(raw || '')
+    .toLowerCase()
+    .trim()
+    .replace(/_/g, '-');
+  if (!t) return '';
+  if (EXTENSIONS[t]) return t;
+  const base = t.replace(/-v?\d+(\.\d+)*$/, '').replace(/-\d+$/, '');
+  if (EXTENSIONS[base]) return base;
+  if (/^(db2|mysql|oracle|postgresql|postgres|mssql|sqlite|mariadb|plsql|sql)/.test(base)) {
+    return base === 'postgres' ? 'postgresql' : base;
+  }
+  return t;
+}
+
+function looksLikeSql(code) {
+  const t = String(code || '').trim();
+  if (!t) return false;
+  if (/^\s*\/\*[\s\S]*?\*\/\s*(select|insert|update|delete|with)\b/i.test(t)) return true;
+  return /\b(select|insert|update|delete|with)\b[\s\S]*\b(from|into|set|values)\b/i.test(t);
+}
+
+function inferLanguage(submission) {
+  const raw = normalizeHrLanguage(submission?.language);
+  if (raw && EXTENSIONS[raw]) return raw;
+
+  const code = submission?.code || '';
+  if (looksLikeSql(code)) return raw && /^(db2|mysql|oracle|postgresql|mssql|sqlite|mariadb|plsql|sql)/.test(raw) ? raw : 'sql';
+
+  // Trust HackerRank's language slug when present (avoid mislabeling SQL/DB2 as Python).
+  if (raw) return raw;
+
+  if (/if\s+__name__/m.test(code) || /\binput\s*\(/m.test(code)) return 'python3';
+  if (/\bdef\s+\w+/m.test(code)) return 'python3';
+  if (/\bpublic\s+class\b/m.test(code)) return 'java';
+  if (/\b#include\s*</m.test(code)) return 'cpp';
+  if (/\bfunction\s+\w+/m.test(code) && /\bconst\s+/m.test(code)) return 'javascript';
+  if (/\bfn\s+\w+/m.test(code)) return 'rust';
+
+  return 'unknown';
+}
+
+function fileExtensionForLanguage(language, code = '') {
+  const lang = normalizeHrLanguage(language);
+  if (lang && EXTENSIONS[lang]) return EXTENSIONS[lang];
+  if (looksLikeSql(code)) return 'sql';
+  return 'txt';
+}
 
 // ─── LANGUAGE → COMMENT STYLE ────────────────────────────────────────────────
 const COMMENT_STYLE = {
@@ -1117,6 +1160,9 @@ function isSubstantiveSubmissionCode(code) {
   // Python function-style
   if (/\bdef\s+\w+/m.test(t)) return t.length >= 30;
 
+  // SQL (HackerRank DB challenges — e.g. DB2, MySQL)
+  if (looksLikeSql(t)) return true;
+
   // Other languages
   if (/\bpublic\s+class\b/m.test(t)) return true;
   if (/\b#include\s*</m.test(t)) return true;
@@ -1132,7 +1178,7 @@ function isSubstantiveSubmissionCode(code) {
 async function pushSubmissionToGitHub(submission, { githubToken, githubUsername, githubRepo }, options = {}) {
   const repoName = (githubRepo || '').trim() || DEFAULT_GITHUB_REPO;
   submission = { ...submission, language: inferLanguage(submission) };
-  const ext = EXTENSIONS[submission.language?.toLowerCase()] || 'txt';
+  const ext = fileExtensionForLanguage(submission.language, submission.code);
   const codeHash = await hashCode(submission.code);
 
   const username =
