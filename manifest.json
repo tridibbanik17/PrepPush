@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PrepPush",
-  "version": "1.1.1",
+  "version": "1.1.7",
   "description": "Auto-document accepted HackerRank solutions to GitHub with free AI complexity analysis.",
   "permissions": [
     "activeTab",

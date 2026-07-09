@@ -482,11 +482,13 @@ const GEMINI_PARAMS = {
         space_complexity: { type: 'STRING', description: 'Big-O space, short' },
         trick: {
           type: 'STRING',
-          description: 'One short sentence (≤25 words): API/technique used + one tradeoff or interview tip',
+          description:
+            'One sentence (≤25 words): key idea of THIS code only — cite a function, syntax, or API actually used (e.g. [::-1], dict lookup). No generic interview advice.',
         },
         code_hint: {
           type: 'STRING',
-          description: 'Optional one-line comment for inside the file: builtins to know (ord, isupper, re.findall) or pitfall',
+          description:
+            'Optional (≤12 words): one API/syntax pitfall from THIS file, or empty string "" if nothing specific. Must name a symbol used in the code.',
         },
       },
       required: ['technique', 'time_complexity', 'space_complexity', 'trick'],
@@ -553,8 +555,53 @@ function extractVisibleText(candidate) {
     .trim();
 }
 
-function buildAnalysisPrompt({ code, language, problemName }) {
-  return `Problem: ${problemName || 'Unknown'}
+function stripCodeForAnalysis(code) {
+  let t = String(code || '').trim();
+  if (!t) return t;
+  t = t.replace(/\r\n/g, '\n');
+  t = t.replace(/if\s+__name__\s*==\s*['"]__main__['"][\s\S]*$/m, '').trim();
+  if (/^\s*\/\*[\s\S]*?\*\//m.test(t)) {
+    t = t.replace(/^\s*\/\*[\s\S]*?\*\/\s*/m, '').trim();
+  }
+  return t || String(code || '').trim();
+}
+
+function codeAnalysisTokens(code) {
+  const t = String(code || '');
+  const tokens = new Set();
+  for (const m of t.matchAll(/\b[a-zA-Z_][a-zA-Z0-9_]{2,}\b/g)) {
+    tokens.add(m[0].toLowerCase());
+  }
+  if (/\[::-1\]/.test(t)) tokens.add('[::-1]');
+  if (/\[::\s*-1\s*\]/.test(t)) tokens.add('[::-1]');
+  if (/\breversed\s*\(/.test(t)) tokens.add('reversed');
+  if (/\bsorted\s*\(/.test(t)) tokens.add('sorted');
+  if (/\benumerate\s*\(/.test(t)) tokens.add('enumerate');
+  if (/\bcollections\./.test(t)) tokens.add('collections');
+  return tokens;
+}
+
+function textReferencesCode(text, codeTokens) {
+  const raw = String(text || '').trim();
+  if (!raw || !codeTokens?.size) return false;
+  if (/\[::-1\]/.test(raw) && codeTokens.has('[::-1]')) return true;
+  const lower = raw.toLowerCase();
+  for (const tok of codeTokens) {
+    if (tok.startsWith('[')) continue;
+    if (lower.includes(tok)) return true;
+  }
+  return false;
+}
+
+const GENERIC_AI_PHRASE =
+  /\b(practice more|edge cases?|interview tip|read carefully|test cases|think about|always remember|make sure|study more|good luck)\b/i;
+
+function buildAnalysisPrompt({ code, language, problemName, problemSlug, problemUrl }) {
+  const problemLine = problemUrl
+    ? `Problem: ${problemName || problemSlug || 'Unknown'}\nLink: ${problemUrl}`
+    : `Problem: ${problemName || problemSlug || 'Unknown'}`;
+
+  return `${problemLine}
 Language: ${language || 'unknown'}
 
 You help developers prep for coding interviews. Analyze the ACCEPTED solution below.
@@ -562,9 +609,10 @@ You help developers prep for coding interviews. Analyze the ACCEPTED solution be
 Focus on what is UNIQUE about THIS code — not a generic explanation of the problem that would apply to every approach.
 
 Rules:
-- "technique": 2–4 words, kebab-case, naming the method in this file (e.g. isupper-scan, regex-split, ord-ascii, filter-upper, two-pointers).
-- "trick": ONE sentence, max 25 words — the formula or key idea (e.g. max(6−n, missing types)). No vague filler; must fit in one line.
-- "code_hint": Optional ONLY if it adds something the trick does not say (≤12 words), e.g. a specific API call. Omit if it would repeat the trick.
+- "technique": 2–4 words, kebab-case, naming the method in this file (e.g. list-slice-reverse, hash-map, two-pointers).
+- "time_complexity" / "space_complexity": Big-O for THIS implementation exactly (not a faster algorithm the user did not write).
+- "trick": ONE sentence, max 25 words — must mention a function name, syntax, or API that appears in the code (e.g. [::-1], .items(), dict). No generic filler ("watch edge cases", "practice more"). Optional: note one tradeoff of this approach vs a common alternative in ≤8 words.
+- "code_hint": "" (empty string) unless you can name a specific API/symbol from the code and a pitfall in ≤12 words. Never repeat the trick.
 
 Respond with ONLY valid JSON (no markdown).
 
@@ -690,7 +738,7 @@ function hintIsRedundantWithTrick(trick, hint) {
   return false;
 }
 
-function parseAnalysisJson(text) {
+function parseAnalysisJson(text, code = '') {
   const match = text.trim().match(/\{[\s\S]*\}/);
   if (!match) throw new Error(`No JSON in model response (got: ${truncate(text, 120)})`);
   let parsed;
@@ -699,13 +747,27 @@ function parseAnalysisJson(text) {
   } catch (e) {
     throw new Error(`Invalid JSON from model: ${e.message}`);
   }
-  const trick = truncateAtWord(parsed.trick, 200);
+
+  const codeTokens = codeAnalysisTokens(code);
+  const technique = truncate(parsed.technique || parsed.approach || 'unknown', 48);
+
+  let trick = truncateAtWord(parsed.trick, 200);
+  const trickGeneric = GENERIC_AI_PHRASE.test(trick);
+  const trickGrounded = textReferencesCode(trick, codeTokens);
+  if (!trick || (trickGeneric && !trickGrounded) || (!trickGrounded && codeTokens.size > 0)) {
+    trick = truncateAtWord(`${technique}: see implementation below.`, 200);
+  }
+
   const rawHint = truncateAtWord(parsed.code_hint || parsed.codeHint || '', 120);
-  const code_hint =
-    rawHint && !hintIsRedundantWithTrick(trick, rawHint) ? rawHint : null;
+  const hintOk =
+    rawHint &&
+    !hintIsRedundantWithTrick(trick, rawHint) &&
+    textReferencesCode(rawHint, codeTokens) &&
+    !GENERIC_AI_PHRASE.test(rawHint);
+  const code_hint = hintOk ? rawHint : null;
 
   return {
-    technique: truncate(parsed.technique || parsed.approach || 'unknown', 48),
+    technique,
     time_complexity: truncate(parsed.time_complexity || parsed.timeComplexity || 'N/A', 40),
     space_complexity: truncate(parsed.space_complexity || parsed.spaceComplexity || 'N/A', 40),
     trick,
@@ -713,10 +775,17 @@ function parseAnalysisJson(text) {
   };
 }
 
-async function analyzeCode({ code, language, problemName, apiKey }) {
-  const prompt = buildAnalysisPrompt({ code, language, problemName });
+async function analyzeCode({ code, language, problemName, problemSlug, contestSlug, apiKey }) {
+  const stripped = stripCodeForAnalysis(code);
+  const prompt = buildAnalysisPrompt({
+    code: stripped,
+    language,
+    problemName,
+    problemSlug,
+    problemUrl: buildHackerRankProblemUrl({ problemSlug, contestSlug }),
+  });
   const { text } = await callGemini({ apiKey, prompt, maxOutputTokens: 1024 });
-  return parseAnalysisJson(text);
+  return parseAnalysisJson(text, stripped);
 }
 
 async function testGeminiConnection(apiKey) {
@@ -738,6 +807,17 @@ async function testGeminiConnection(apiKey) {
   }
 }
 
+function buildHackerRankProblemUrl(submission) {
+  const slug = String(submission?.problemSlug || '').trim();
+  if (!slug) return null;
+  const contest = String(submission?.contestSlug || 'master').trim() || 'master';
+  const path =
+    contest === 'master'
+      ? `/challenges/${slug}/problem`
+      : `/contests/${contest}/challenges/${slug}/problem`;
+  return `https://www.hackerrank.com${path}?isFullScreen=true`;
+}
+
 // ─── BUILD FILE HEADER ────────────────────────────────────────────────────────
 function buildHeader(submission, ext) {
   const c = COMMENT_STYLE[ext] || '#';
@@ -748,7 +828,9 @@ function buildHeader(submission, ext) {
   });
 
   const analysis = submission.analysis;
+  const problemUrl = buildHackerRankProblemUrl(submission);
   const rows = [
+    ...(problemUrl ? [['Link', problemUrl]] : []),
     ['Problem',    submission.problemName || submission.problemSlug],
     ['Difficulty', submission.difficulty || 'N/A'],
     ['Subdomain',  submission.subdomainName || 'N/A'],
@@ -1233,6 +1315,8 @@ async function enrichWithAiNotes(submission, creds, commitUrl, filePath) {
       code: submission.code,
       language: submission.language,
       problemName: submission.problemName || submission.problemSlug,
+      problemSlug: submission.problemSlug,
+      contestSlug: submission.contestSlug,
       apiKey: geminiApiKey,
     });
     submission = { ...submission, analysis };

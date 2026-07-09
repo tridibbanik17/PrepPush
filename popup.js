@@ -74,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const githubToken = tokenInput.value.trim();
       const geminiApiKey = geminiKeyInput.value.trim();
       const autoAnalyze = autoAnalyzeCheckbox.checked;
+      updateSetupGuideVisibility(!!githubToken);
       chrome.storage.sync.set({ githubToken, geminiApiKey, autoAnalyze });
     }, AUTO_SAVE_DEBOUNCE_MS);
   }
@@ -95,13 +96,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ─── TABS ───────────────────────────────────────────────────────────────────
-  document.querySelectorAll('.tab').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
-      document.querySelectorAll('.panel').forEach((p) => p.classList.remove('active'));
-      tab.classList.add('active');
-      document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+  function activateTab(tabName) {
+    document.querySelectorAll('.tab').forEach((t) => {
+      t.classList.toggle('active', t.dataset.tab === tabName);
     });
+    document.querySelectorAll('.panel').forEach((p) => {
+      p.classList.toggle('active', p.id === `tab-${tabName}`);
+    });
+  }
+
+  document.querySelectorAll('.tab').forEach((tab) => {
+    tab.addEventListener('click', () => activateTab(tab.dataset.tab));
   });
 
   // ─── FORMAT HELPERS ──────────────────────────────────────────────────────────
@@ -369,6 +374,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // ─── SETTINGS ────────────────────────────────────────────────────────────────
   const setupGuide = document.getElementById('setup-guide');
 
+  function updateSetupGuideVisibility(hasGithubToken) {
+    if (!setupGuide) return;
+    setupGuide.hidden = false;
+    if (hasGithubToken) {
+      setupGuide.removeAttribute('open');
+    } else {
+      setupGuide.setAttribute('open', '');
+    }
+  }
+
   chrome.storage.sync.get(
     ['githubToken', 'geminiApiKey', 'anthropicApiKey', 'autoAnalyze'],
     (data) => {
@@ -378,9 +393,9 @@ document.addEventListener('DOMContentLoaded', () => {
         showAiStatus('PrepPush now uses free Gemini — get a key above (Anthropic no longer used)', 'error');
       }
       if (data.autoAnalyze === false) autoAnalyzeCheckbox.checked = false;
-      if (data.githubToken && setupGuide) {
-        setupGuide.removeAttribute('open');
-      }
+      const hasToken = !!(data.githubToken || tokenInput.value.trim());
+      updateSetupGuideVisibility(hasToken);
+      if (!hasToken) activateTab('settings');
     }
   );
 
@@ -483,7 +498,8 @@ document.addEventListener('DOMContentLoaded', () => {
         connectionStatus.textContent = '';
         aiStatus.className = 'settings-status';
         aiStatus.textContent = '';
-        if (setupGuide) setupGuide.setAttribute('open', '');
+        updateSetupGuideVisibility(false);
+        activateTab('settings');
       }
     );
   });
