@@ -249,12 +249,15 @@
       font-size: 9px; font-weight: 700; color: var(--analysis-label);
       text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px;
     }
+    .analysis-body {
+      font-size: 11px; color: var(--text); line-height: 1.5; margin-bottom: 6px;
+    }
     .analysis-trick {
-      font-size: 11px; color: var(--analysis-trick); line-height: 1.5; margin-bottom: 6px;
+      font-size: 11px; color: var(--text); line-height: 1.5; margin-bottom: 6px;
     }
     .analysis-meta {
       font-family: ui-monospace, 'Cascadia Code', 'Courier New', monospace;
-      font-size: 10px; color: var(--accent-text);
+      font-size: 10px; color: var(--text-muted);
     }
     .analysis-pending {
       font-size: 10px; color: var(--text-muted); margin-top: 8px; font-style: italic;
@@ -789,7 +792,7 @@
       <div class="settings-card-header">
         <div>
           <div class="settings-card-title">AI analysis</div>
-          <div class="settings-card-sub">Free Gemini · trick, time &amp; space in each file</div>
+          <div class="settings-card-sub">Free Gemini · insight, interview &amp; pitfalls in each file</div>
         </div>
         <a
           class="settings-card-link"
@@ -813,7 +816,7 @@
         <input type="checkbox" id="auto-analyze" checked/>
         <span class="settings-check-text">
           <span class="settings-check-title">Auto-analyze accepted submissions</span>
-          <span class="settings-check-hint">Adds trick, time, and space to each GitHub file.</span>
+          <span class="settings-check-hint">Adds insight, interview talk-track, pitfalls, time, and space to each GitHub file.</span>
           <span class="settings-check-hint">Turn off to push code only (no AI).</span>
         </span>
       </label>

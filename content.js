@@ -390,6 +390,26 @@ function difficultyLabelFromModel(model) {
 
 function parseChallengeModel(model) {
   if (!model || typeof model !== 'object') return {};
+  const rawParts = [
+    model.body,
+    model.body_html,
+    model.problem_statement,
+    model.statement,
+    model.question_body,
+    model.html_body,
+  ].filter((s) => typeof s === 'string' && s.trim());
+  let problemStatement = '';
+  if (rawParts.length) {
+    problemStatement = rawParts
+      .map((s) => (/</.test(s) ? s.replace(/<[^>]+>/g, ' ') : s))
+      .join('\n')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  if (problemStatement.length < 80 && typeof model.preview === 'string') {
+    problemStatement = model.preview.trim();
+  }
   return {
     difficulty: difficultyLabelFromModel(model),
     subdomainName:
@@ -398,7 +418,27 @@ function parseChallengeModel(model) {
       model.primary_contest?.track?.name ||
       null,
     problemName: model.name || null,
+    problemStatement: problemStatement || null,
   };
+}
+
+/** Full visible problem text from the page (fallback when REST body is thin). */
+function scrapeProblemStatementFromDom() {
+  const selectors = [
+    '[data-attr2="Statement"]',
+    '[class*="challenge-body"]',
+    '[class*="ChallengeBody"]',
+    '.challenge-text',
+    '#content .challenge-body-html',
+    'div.challenge-body-html',
+    '[data-testid="challenge-body"]',
+  ];
+  for (const sel of selectors) {
+    const el = document.querySelector(sel);
+    const text = el?.innerText?.trim();
+    if (text && text.length >= 80) return text;
+  }
+  return null;
 }
 
 function friendlySubdomainName(contestSlug, existing) {
@@ -452,7 +492,7 @@ async function fetchChallengeDetailsInPage(slug, contestSlug) {
       if (!res.ok) continue;
       const parsed = parseChallengeModel((await res.json())?.model);
       parsed.subdomainName = friendlySubdomainName(contest, parsed.subdomainName);
-      if (parsed.difficulty || parsed.subdomainName) return parsed;
+      if (parsed.difficulty || parsed.subdomainName || parsed.problemStatement) return parsed;
     } catch {
       /* ignore */
     }
@@ -494,20 +534,35 @@ async function handleAcceptedSubmission(submission, source) {
     window.__preppushSeenIds.add(id);
     clearWatching(submission.submissionId);
 
-    if (!submission.difficulty || !submission.subdomainName) {
+    // Prefer full problem statement for AI notes (REST body, then page DOM).
+    {
       const details = await fetchChallengeDetailsInPage(
         submission.problemSlug,
         submission.contestSlug
       );
+      const fromDom = scrapeProblemStatementFromDom();
+      const statement =
+        (details.problemStatement && details.problemStatement.length >= 80
+          ? details.problemStatement
+          : null) ||
+        fromDom ||
+        details.problemStatement ||
+        null;
       submission = {
         ...submission,
         difficulty: submission.difficulty || details.difficulty,
         subdomainName: submission.subdomainName || details.subdomainName,
         problemName: submission.problemName || details.problemName,
+        problemStatement: submission.problemStatement || statement,
       };
     }
 
-    console.log(`[PrepPush] New accepted submission (${source}):`, submission);
+    console.log(`[PrepPush] New accepted submission (${source}):`, {
+      ...submission,
+      problemStatement: submission.problemStatement
+        ? `[${submission.problemStatement.length} chars]`
+        : null,
+    });
 
     const displayName = submission.problemName || submission.problemSlug || 'Solution';
 

@@ -476,22 +476,32 @@ const GEMINI_PARAMS = {
       properties: {
         technique: {
           type: 'STRING',
-          description: 'Short label for THIS implementation only (e.g. isupper-scan, regex-split, ord-ascii, filter-upper)',
+          description:
+            'Short label for THIS implementation only (e.g. two-pointers-dummy-node, hash-map, isupper-scan)',
         },
         time_complexity: { type: 'STRING', description: 'Big-O time, short' },
         space_complexity: { type: 'STRING', description: 'Big-O space, short' },
-        trick: {
+        insight: {
           type: 'STRING',
           description:
-            'One sentence (≤25 words): key idea of THIS code only — cite a function, syntax, or API actually used (e.g. [::-1], dict lookup). No generic interview advice.',
+            'ONE complete sentence (≤40 words): invariant matching THIS code exactly. Third person only. Use "" if unsure — never guess. Never mid-sentence.',
         },
-        code_hint: {
+        interview: {
           type: 'STRING',
           description:
-            'Optional (≤12 words): one API/syntax pitfall from THIS file, or empty string "" if nothing specific. Must name a symbol used in the code.',
+            'Format: Before: "...". After: "...". Max 55 words, complete. Differ from insight; complexity in After. Use "" if unsure — never guess.',
+        },
+        pitfalls: {
+          type: 'ARRAY',
+          description:
+            '1–3 complete pitfalls matching THIS statement AND THIS code. Never contradict samples/guards. Use [] if unsure — never guess.',
+          items: {
+            type: 'STRING',
+            description: 'One complete pitfall, ≤30 words, names the exact rule — never truncated',
+          },
         },
       },
-      required: ['technique', 'time_complexity', 'space_complexity', 'trick'],
+      required: ['technique', 'time_complexity', 'space_complexity', 'insight', 'interview', 'pitfalls'],
     },
   },
   test: {
@@ -566,53 +576,53 @@ function stripCodeForAnalysis(code) {
   return t || String(code || '').trim();
 }
 
-function codeAnalysisTokens(code) {
-  const t = String(code || '');
-  const tokens = new Set();
-  for (const m of t.matchAll(/\b[a-zA-Z_][a-zA-Z0-9_]{2,}\b/g)) {
-    tokens.add(m[0].toLowerCase());
-  }
-  if (/\[::-1\]/.test(t)) tokens.add('[::-1]');
-  if (/\[::\s*-1\s*\]/.test(t)) tokens.add('[::-1]');
-  if (/\breversed\s*\(/.test(t)) tokens.add('reversed');
-  if (/\bsorted\s*\(/.test(t)) tokens.add('sorted');
-  if (/\benumerate\s*\(/.test(t)) tokens.add('enumerate');
-  if (/\bcollections\./.test(t)) tokens.add('collections');
-  return tokens;
-}
-
-function textReferencesCode(text, codeTokens) {
-  const raw = String(text || '').trim();
-  if (!raw || !codeTokens?.size) return false;
-  if (/\[::-1\]/.test(raw) && codeTokens.has('[::-1]')) return true;
-  const lower = raw.toLowerCase();
-  for (const tok of codeTokens) {
-    if (tok.startsWith('[')) continue;
-    if (lower.includes(tok)) return true;
-  }
-  return false;
-}
-
 const GENERIC_AI_PHRASE =
   /\b(practice more|edge cases?|interview tip|read carefully|test cases|think about|always remember|make sure|study more|good luck)\b/i;
 
-function buildAnalysisPrompt({ code, language, problemName, problemSlug, problemUrl }) {
+function buildAnalysisPrompt({
+  code,
+  language,
+  problemName,
+  problemSlug,
+  problemUrl,
+  problemStatement,
+}) {
   const problemLine = problemUrl
     ? `Problem: ${problemName || problemSlug || 'Unknown'}\nLink: ${problemUrl}`
     : `Problem: ${problemName || problemSlug || 'Unknown'}`;
 
+  const statementBlock = problemStatement
+    ? `\nFULL PROBLEM STATEMENT (from HackerRank — treat definitions, samples, and constraints as ground truth):\n"""\n${problemStatement}\n"""\n`
+    : '\n(Problem statement unavailable — rely only on the code and problem title. Prefer empty pitfalls over generic DSA advice.)\n';
+
   return `${problemLine}
 Language: ${language || 'unknown'}
-
+${statementBlock}
 You help developers prep for coding interviews. Analyze the ACCEPTED solution below.
 
-Focus on what is UNIQUE about THIS code — not a generic explanation of the problem that would apply to every approach.
+CRITICAL — ground truth order:
+1) Read the PROBLEM STATEMENT definitions (especially parameters like k, indexing, invalid inputs, samples).
+2) Read the CODE and note exact loop offsets (e.g. range(k) vs range(k+1)) and early-return guards (k < 0 vs k <= 0).
+3) Write fields that agree with BOTH. Never invent "standard leetcode" rules that contradict this statement or this code.
+
+ACCURACY POLICY (highest priority):
+- Wrong notes are worse than missing notes. If you are not certain a claim matches THIS statement AND THIS code, omit it ("" or []).
+- Never say k=0 is invalid if the code only rejects k < 0 (or otherwise handles k=0 as a real removal).
+- If the code advances fast with k+1, insight/pitfalls must say k+1 — never a plain gap of k.
+- Do not claim "k equals list length removes the head" unless that exact rule appears in THIS statement.
+
+Field roles (do NOT blur them together):
+- "insight" = silent-revision invariant in ONE third-person sentence. Never first person. Never "I will".
+- "interview" = spoken script ONLY in this shape: Before: "...". After: "...". After must mention Big-O and the key edge from the statement. Must not copy insight.
+- "pitfalls" = 1–3 concrete wrong-answer risks from THIS statement + THIS code. Each must name the exact rule. Ban vague "off-by-one with pointers".
 
 Rules:
-- "technique": 2–4 words, kebab-case, naming the method in this file (e.g. list-slice-reverse, hash-map, two-pointers).
-- "time_complexity" / "space_complexity": Big-O for THIS implementation exactly (not a faster algorithm the user did not write).
-- "trick": ONE sentence, max 25 words — must mention a function name, syntax, or API that appears in the code (e.g. [::-1], .items(), dict). No generic filler ("watch edge cases", "practice more"). Optional: note one tradeoff of this approach vs a common alternative in ≤8 words.
-- "code_hint": "" (empty string) unless you can name a specific API/symbol from the code and a pitfall in ≤12 words. Never repeat the trick.
+- "technique": 2–6 words for THIS file (e.g. two-pointers-dummy-node).
+- "time_complexity" / "space_complexity": Big-O for THIS implementation only.
+- "insight": max 40 words, complete sentence(s). "" if unsure.
+- "interview": max 55 words, Before/After when non-trivial. "" if unsure.
+- "pitfalls": 1–3 strings, each ≤30 words and a complete thought. [] if unsure.
+- Never end a field mid-sentence. Short and complete beats long and cut off.
 
 Respond with ONLY valid JSON (no markdown).
 
@@ -725,17 +735,161 @@ function truncateAtWord(text, max = 200) {
   return `${cut.trimEnd()}…`;
 }
 
+/**
+ * Keep full analysis text only — never mid-chop with "…".
+ * Over hardMax: omit (empty beats a truncated note).
+ */
+function keepCompleteAnalysisText(text, softMax, hardMax = softMax * 2) {
+  const s = String(text || '').trim().replace(/\s+/g, ' ');
+  if (!s) return '';
+  // Drop model output that already looks mid-truncated.
+  if (/…\s*$|\.\.\.\s*$/.test(s) && !/\bBefore:\s/i.test(s)) return '';
+  if (s.length <= hardMax) return s;
+  return '';
+}
+
 function normalizeForCompare(text) {
   return String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-function hintIsRedundantWithTrick(trick, hint) {
-  const t = normalizeForCompare(trick);
-  const h = normalizeForCompare(hint);
-  if (!h) return true;
-  if (t === h) return true;
-  if (t.includes(h) || h.includes(t)) return true;
+function isUsefulAnalysisLine(text) {
+  const t = String(text || '').trim();
+  if (!t || t.length < 8) return false;
+  if (GENERIC_AI_PHRASE.test(t)) return false;
+  if (/^see implementation below\.?$/i.test(t)) return false;
+  return true;
+}
+
+function linesTooSimilar(a, b) {
+  const x = normalizeForCompare(a);
+  const y = normalizeForCompare(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  if (x.includes(y) || y.includes(x)) return true;
+  const ax = new Set(x.split(/\s+/).filter((w) => w.length > 3));
+  const ay = new Set(y.split(/\s+/).filter((w) => w.length > 3));
+  if (!ax.size || !ay.size) return false;
+  let overlap = 0;
+  for (const w of ax) if (ay.has(w)) overlap++;
+  const ratio = overlap / Math.min(ax.size, ay.size);
+  return ratio >= 0.75;
+}
+
+/** Facts inferred from the solution code — used to drop contradictory AI claims. */
+function extractCodeConsistencyFacts(code) {
+  const c = String(code || '');
+  const advancesKPlusOne =
+    /range\s*\(\s*k\s*\+\s*1\s*\)/.test(c) ||
+    /for\s*\([^)]*k\s*\+\s*1/.test(c) ||
+    /(?:fast|ptr|p2)[^\n]{0,48}k\s*\+\s*1/.test(c) ||
+    /k\s*\+\s*1[^\n]{0,48}(?:fast|times|steps)/.test(c);
+  const advancesKOnly =
+    /range\s*\(\s*k\s*\)/.test(c) && !/range\s*\(\s*k\s*\+\s*1\s*\)/.test(c);
+  const rejectsKLessOrEqualZero = /k\s*<=\s*0/.test(c);
+  const rejectsKStrictlyNegative = /k\s*<\s*0/.test(c) && !rejectsKLessOrEqualZero;
+  return {
+    advancesKPlusOne,
+    advancesKOnly,
+    // k=0 is a real case when we only bail on k < 0
+    k0Valid: rejectsKStrictlyNegative,
+    k0Invalid: rejectsKLessOrEqualZero,
+  };
+}
+
+function textContradictsCode(text, facts) {
+  const t = String(text || '');
+  if (!t.trim()) return false;
+  const lower = t.toLowerCase();
+
+  const claimsK0Invalid =
+    /k\s*=\s*0[^.\n]{0,40}invalid/i.test(t) ||
+    /invalid[^.\n]{0,40}k\s*=\s*0/i.test(t) ||
+    /k\s*=\s*0\s+is\s+treated\s+as\s+invalid/i.test(t) ||
+    /treat(?:s|ed)?\s+k\s*=\s*0\s+as\s+invalid/i.test(t);
+
+  const claimsK0RemovesOrValid =
+    /k\s*=\s*0[^.\n]{0,50}(removes?|last|valid)/i.test(t) ||
+    /(removes?|last)[^.\n]{0,50}k\s*=\s*0/i.test(t);
+
+  const mentionsGapOfK =
+    /\bgap of k\b(?!\s*\+\s*1)/i.test(t) ||
+    /\bfixed gap of k\b(?!\s*\+\s*1)/i.test(t) ||
+    /\boffset(?:ting)?(?:\s+the)?(?:\s+fast)?(?:\s+pointer)?\s+by k\b(?!\s*\+\s*1)/i.test(t) ||
+    /\badvance(?:s|ing)?(?:\s+the)?(?:\s+fast)?(?:\s+pointer)?\s+by k\b(?!\s*\+\s*1)/i.test(t);
+
+  const mentionsKPlusOne = /k\s*\+\s*1|k\s*plus\s*one/i.test(t);
+
+  const claimsKEqualsLengthRemovesHead =
+    /k equals (the )?list length/i.test(t) ||
+    /when k equals[^.]*length/i.test(t) ||
+    /k\s*==\s*n\b/i.test(t) ||
+    /k\s*=\s*(the )?list length/i.test(t);
+
+  if (facts.k0Valid && claimsK0Invalid) return true;
+  if (facts.k0Invalid && claimsK0RemovesOrValid) return true;
+  if (facts.advancesKPlusOne && mentionsGapOfK && !mentionsKPlusOne) return true;
+  if (facts.advancesKOnly && mentionsKPlusOne && /gap|advance|offset/i.test(t)) return true;
+  // Classic LeetCode confusion: k==n removes head — reject when this code uses 0-based k+1 pattern
+  if (facts.advancesKPlusOne && facts.k0Valid && claimsKEqualsLengthRemovesHead) return true;
+  // Vague "k=0 invalid" without saying why, when code shows k0 valid
+  if (facts.k0Valid && /k\s*=\s*0/i.test(t) && /invalid/i.test(lower)) return true;
+
   return false;
+}
+
+function sanitizeAnalysisAgainstCode(fields, code) {
+  const facts = extractCodeConsistencyFacts(code);
+  let { insight, interview, pitfalls } = fields;
+  const dropped = [];
+
+  if (insight && textContradictsCode(insight, facts)) {
+    dropped.push('insight');
+    insight = null;
+  }
+  if (interview && textContradictsCode(interview, facts)) {
+    dropped.push('interview');
+    interview = null;
+  }
+
+  const keptPitfalls = [];
+  for (const p of pitfalls || []) {
+    if (textContradictsCode(p, facts)) {
+      dropped.push(`pitfall:${p.slice(0, 40)}`);
+      continue;
+    }
+    keptPitfalls.push(p);
+  }
+
+  if (dropped.length) {
+    console.warn('[PrepPush] Dropped inconsistent AI notes (prefer empty over wrong):', dropped);
+  }
+
+  return { ...fields, insight, interview, pitfalls: keptPitfalls };
+}
+
+function normalizePitfallsList(raw) {
+  let items = [];
+  if (Array.isArray(raw)) {
+    items = raw;
+  } else if (typeof raw === 'string' && raw.trim()) {
+    items = raw
+      .split(/\n|(?:\)\s*)(?=\()|;\s+/)
+      .map((s) => s.replace(/^\(?\s*\d+[\).\]]\s*/, '').replace(/^\(\d+\)\s*/, '').trim())
+      .filter(Boolean);
+  }
+  const out = [];
+  const seen = new Set();
+  for (const item of items) {
+    // Hard cap drops absurdly long lines instead of chopping with "…"
+    const line = keepCompleteAnalysisText(String(item || '').trim(), 220, 400);
+    if (!isUsefulAnalysisLine(line)) continue;
+    const key = normalizeForCompare(line);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(line);
+    if (out.length >= 3) break;
+  }
+  return out;
 }
 
 function parseAnalysisJson(text, code = '') {
@@ -748,34 +902,71 @@ function parseAnalysisJson(text, code = '') {
     throw new Error(`Invalid JSON from model: ${e.message}`);
   }
 
-  const codeTokens = codeAnalysisTokens(code);
   const technique = truncate(parsed.technique || parsed.approach || 'unknown', 48);
 
-  let trick = truncateAtWord(parsed.trick, 200);
-  const trickGeneric = GENERIC_AI_PHRASE.test(trick);
-  const trickGrounded = textReferencesCode(trick, codeTokens);
-  if (!trick || (trickGeneric && !trickGrounded) || (!trickGrounded && codeTokens.size > 0)) {
-    trick = truncateAtWord(`${technique}: see implementation below.`, 200);
+  // Prefer omitting weak/uncertain insight over filler or mid-chopped text.
+  let insight = keepCompleteAnalysisText(parsed.insight || parsed.trick || '', 280, 480);
+  if (!isUsefulAnalysisLine(insight)) insight = null;
+
+  let interview = keepCompleteAnalysisText(parsed.interview || '', 360, 560);
+  if (!isUsefulAnalysisLine(interview)) interview = null;
+  if (interview && insight && linesTooSimilar(insight, interview)) {
+    interview = null;
   }
 
-  const rawHint = truncateAtWord(parsed.code_hint || parsed.codeHint || '', 120);
-  const hintOk =
-    rawHint &&
-    !hintIsRedundantWithTrick(trick, rawHint) &&
-    textReferencesCode(rawHint, codeTokens) &&
-    !GENERIC_AI_PHRASE.test(rawHint);
-  const code_hint = hintOk ? rawHint : null;
+  let pitfalls = normalizePitfallsList(parsed.pitfalls);
+  if (!pitfalls.length) {
+    const legacyHint = keepCompleteAnalysisText(parsed.code_hint || parsed.codeHint || '', 220, 400);
+    if (isUsefulAnalysisLine(legacyHint)) pitfalls = [legacyHint];
+  }
 
-  return {
-    technique,
-    time_complexity: truncate(parsed.time_complexity || parsed.timeComplexity || 'N/A', 40),
-    space_complexity: truncate(parsed.space_complexity || parsed.spaceComplexity || 'N/A', 40),
-    trick,
-    code_hint,
-  };
+  const insightKey = normalizeForCompare(insight);
+  const interviewKey = normalizeForCompare(interview);
+  pitfalls = pitfalls.filter((p) => {
+    const k = normalizeForCompare(p);
+    if (!k) return false;
+    if (insightKey && (k === insightKey || insightKey.includes(k) || k.includes(insightKey))) {
+      return false;
+    }
+    if (interviewKey && (k === interviewKey || interviewKey.includes(k) || k.includes(interviewKey))) {
+      return false;
+    }
+    return true;
+  });
+
+  return sanitizeAnalysisAgainstCode(
+    {
+      technique,
+      time_complexity: truncate(parsed.time_complexity || parsed.timeComplexity || 'N/A', 40),
+      space_complexity: truncate(parsed.space_complexity || parsed.spaceComplexity || 'N/A', 40),
+      insight,
+      interview,
+      pitfalls,
+    },
+    code,
+  );
 }
 
-async function analyzeCode({ code, language, problemName, problemSlug, contestSlug, apiKey }) {
+async function analyzeCode({
+  code,
+  language,
+  problemName,
+  problemSlug,
+  contestSlug,
+  problemStatement,
+  apiKey,
+}) {
+  let statement = String(problemStatement || '').trim();
+  if (!statement && problemSlug) {
+    try {
+      const details = await fetchChallengeDetails(problemSlug, contestSlug);
+      if (details.problemStatement) statement = details.problemStatement;
+      if (!problemName && details.problemName) problemName = details.problemName;
+    } catch (e) {
+      console.warn('[PrepPush] Could not load problem statement:', e?.message || e);
+    }
+  }
+
   const stripped = stripCodeForAnalysis(code);
   const prompt = buildAnalysisPrompt({
     code: stripped,
@@ -783,8 +974,10 @@ async function analyzeCode({ code, language, problemName, problemSlug, contestSl
     problemName,
     problemSlug,
     problemUrl: buildHackerRankProblemUrl({ problemSlug, contestSlug }),
+    problemStatement: statement || null,
   });
-  const { text } = await callGemini({ apiKey, prompt, maxOutputTokens: 1024 });
+  // Full statements need a bit more output budget for grounded pitfalls.
+  const { text } = await callGemini({ apiKey, prompt, maxOutputTokens: 1280 });
   return parseAnalysisJson(text, stripped);
 }
 
@@ -845,9 +1038,15 @@ function buildHeader(submission, ext) {
       ['Technique', analysis.technique || 'N/A'],
       ['Time', analysis.time_complexity],
       ['Space', analysis.space_complexity],
-      ['Trick', analysis.trick],
     );
-    if (analysis.code_hint) rows.push(['Hint', analysis.code_hint]);
+    if (analysis.insight) rows.push(['Insight', analysis.insight]);
+    if (analysis.interview) rows.push(['Interview', analysis.interview]);
+    if (analysis.pitfalls?.length) {
+      const pitfallsText = analysis.pitfalls
+        .map((p, i) => `(${i + 1}) ${p}`)
+        .join('  ');
+      rows.push(['Pitfalls', pitfallsText]);
+    }
   }
 
   const maxLabel = Math.max(...rows.map(([l]) => l.length));
@@ -856,17 +1055,6 @@ function buildHeader(submission, ext) {
     .join('\n');
 
   return `${line}\n${body}\n${line}\n\n`;
-}
-
-function injectCodeHint(code, hint, ext) {
-  if (!hint || !code?.trim()) return code;
-  const c = COMMENT_STYLE[ext] || '#';
-  const hintLine = `${c} ${hint}\n`;
-  const defMatch = code.match(/^(\s*def \w+)/m);
-  if (defMatch) {
-    return code.replace(defMatch[0], `${hintLine}${defMatch[0]}`);
-  }
-  return hintLine + code;
 }
 
 // ─── FETCH ACCEPTED SUBMISSION (extension context + session cookies) ─────────
@@ -979,6 +1167,54 @@ async function fetchLatestSubmissionFromHr(contest, slug) {
   return { submission: null, attempts };
 }
 
+function htmlToPlainText(html) {
+  if (!html || typeof html !== 'string') return '';
+  let t = html
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\s*\/\s*p\s*>/gi, '\n')
+    .replace(/<\s*\/\s*div\s*>/gi, '\n')
+    .replace(/<\s*\/\s*li\s*>/gi, '\n')
+    .replace(/<\s*li[^>]*>/gi, '- ')
+    .replace(/<\s*h[1-6][^>]*>/gi, '\n')
+    .replace(/<\s*\/\s*h[1-6]\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+  t = t.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim();
+  return t;
+}
+
+/** Prefer full statement fields from HackerRank challenge JSON. */
+function extractProblemStatementFromModel(model) {
+  if (!model || typeof model !== 'object') return '';
+  const chunks = [];
+  const push = (v) => {
+    if (!v) return;
+    const s = typeof v === 'string' ? v : '';
+    if (!s.trim()) return;
+    const plain = /</.test(s) ? htmlToPlainText(s) : s.trim();
+    if (plain) chunks.push(plain);
+  };
+
+  // Full body first (classic + many contests), then other known statement fields.
+  push(model.body);
+  push(model.body_html);
+  push(model.problem_statement);
+  push(model.statement);
+  push(model.question_body);
+  push(model.html_body);
+  // preview alone is often too short — only use if nothing fuller exists
+  const joined = chunks.join('\n\n').trim();
+  if (joined.length >= 80) return joined;
+  push(model.preview);
+  push(model.description);
+  return chunks.join('\n\n').trim();
+}
+
 // ─── FETCH DIFFICULTY + SUBDOMAIN FROM HACKERRANK ────────────────────────────
 function difficultyLabelFromModel(model) {
   if (!model) return null;
@@ -1003,6 +1239,7 @@ function parseChallengeModel(model) {
     difficulty: difficultyLabelFromModel(model),
     subdomainName,
     problemName: model.name || null,
+    problemStatement: extractProblemStatementFromModel(model) || null,
   };
 }
 
@@ -1032,8 +1269,15 @@ async function fetchChallengeDetails(slug, contestSlug) {
       const data = await res.json();
       const parsed = parseChallengeModel(data?.model);
       parsed.subdomainName = friendlySubdomainName(contest, parsed.subdomainName);
-      if (parsed.difficulty || parsed.subdomainName) {
-        console.log('[PrepPush] Challenge metadata ✅', parsed);
+      if (parsed.difficulty || parsed.subdomainName || parsed.problemStatement) {
+        console.log(
+          '[PrepPush] Challenge metadata ✅',
+          {
+            difficulty: parsed.difficulty,
+            subdomainName: parsed.subdomainName,
+            statementChars: parsed.problemStatement?.length || 0,
+          },
+        );
         return parsed;
       }
     } catch (e) {
@@ -1317,6 +1561,7 @@ async function enrichWithAiNotes(submission, creds, commitUrl, filePath) {
       problemName: submission.problemName || submission.problemSlug,
       problemSlug: submission.problemSlug,
       contestSlug: submission.contestSlug,
+      problemStatement: submission.problemStatement,
       apiKey: geminiApiKey,
     });
     submission = { ...submission, analysis };
@@ -1366,17 +1611,17 @@ async function handleSubmission(submission) {
   const [syncSettings, { lastHandledSubmissionId }, details] = await Promise.all([
     chrome.storage.sync.get(['githubToken', 'githubRepo', 'geminiApiKey', 'autoAnalyze']),
     chrome.storage.local.get(['lastHandledSubmissionId']),
-    submission.difficulty && submission.subdomainName
-      ? Promise.resolve({})
-      : fetchChallengeDetails(submission.problemSlug, submission.contestSlug).catch(() => ({})),
+    // Always try challenge JSON so AI can see the full problem statement when available.
+    fetchChallengeDetails(submission.problemSlug, submission.contestSlug).catch(() => ({})),
   ]);
 
-  if (details.difficulty || details.subdomainName || details.problemName) {
+  if (details.difficulty || details.subdomainName || details.problemName || details.problemStatement) {
     submission = {
       ...submission,
       difficulty: submission.difficulty || details.difficulty,
       subdomainName: submission.subdomainName || details.subdomainName,
       problemName: submission.problemName || details.problemName,
+      problemStatement: submission.problemStatement || details.problemStatement || null,
     };
   }
 

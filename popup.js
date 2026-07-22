@@ -150,10 +150,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const a = sub.analysis;
     const analysisHtml = a
       ? `<div class="analysis-box">
-          ${a.technique ? `<div class="analysis-meta" style="margin-bottom:4px">${escapeHtml(a.technique)}</div>` : ''}
-          <div class="analysis-label">Trick to remember</div>
-          <div class="analysis-trick">${escapeHtml(a.trick)}</div>
-          ${a.code_hint ? `<div class="analysis-meta" style="margin-top:4px">Hint: ${escapeHtml(a.code_hint)}</div>` : ''}
+          ${a.technique ? `<div class="analysis-meta" style="margin-bottom:6px">${escapeHtml(a.technique)}</div>` : ''}
+          ${a.insight ? `<div class="analysis-label">Insight</div><div class="analysis-body">${escapeHtml(a.insight)}</div>` : ''}
+          ${a.interview ? `<div class="analysis-label" style="margin-top:6px">Interview</div><div class="analysis-body">${escapeHtml(a.interview)}</div>` : ''}
+          ${a.pitfalls?.length ? `<div class="analysis-label" style="margin-top:6px">Pitfalls</div><div class="analysis-body">${a.pitfalls.map((p, i) => escapeHtml(`(${i + 1}) ${p}`)).join('<br/>')}</div>` : ''}
+          ${!a.insight && a.trick ? `<div class="analysis-label">Trick to remember</div><div class="analysis-body">${escapeHtml(a.trick)}</div>` : ''}
+          ${!a.pitfalls?.length && a.code_hint ? `<div class="analysis-label" style="margin-top:6px">Hint</div><div class="analysis-body">${escapeHtml(a.code_hint)}</div>` : ''}
         </div>`
       : sub.analysisError
         ? `<div class="analysis-pending">AI: ${escapeHtml(sub.analysisError)}</div>`

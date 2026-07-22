@@ -1,6 +1,6 @@
 # PrepPush
 
-PrepPush is a Chrome extension that captures your **accepted** HackerRank submissions, adds interview-prep notes (time/space complexity and a one-line trick), and pushes everything to a GitHub repo you control.
+PrepPush is a Chrome extension that captures your **accepted** HackerRank submissions, adds interview-prep notes (time/space complexity, insight, interview talk-track, and pitfalls), and pushes everything to a GitHub repo you control.
 
 ## What you get on GitHub
 
@@ -19,11 +19,14 @@ solutions/{language}/{difficulty}/{problem-slug}/solution-approach2.py
 Example header in the file:
 
 ```python
-# Problem     Alternating Characters
+# Problem     Two Sum
 # Difficulty  Easy
+# Technique   hash-map-complement
 # Time        O(n)
 # Space       O(1)
-# Trick       Count adjacent identical characters…
+# Insight     Store seen values so the complement is an O(1) lookup in one pass.
+# Interview   Before coding: "I'll scan once and check target-x in a set." After: "O(n) time, O(n) space."
+# Pitfalls    (1) Forget self-pair when nums[i]*2==target  (2) Return indices not values
 ```
 
 - **Same code** re-submitted → overwrites the same `solution-approachN.py`.
