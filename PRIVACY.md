@@ -1,6 +1,6 @@
 # PrepPush Privacy Policy
 
-**Last updated:** July 22, 2026
+**Last updated:** July 29, 2026
 
 PrepPush (“the extension”) is a browser extension that helps you save accepted HackerRank solutions to your own GitHub repository with optional AI-generated study notes.
 
@@ -8,7 +8,9 @@ PrepPush (“the extension”) is a browser extension that helps you save accept
 
 - **We do not run a backend server** for PrepPush. The extension runs in your browser.
 - **We do not collect or store your data on our servers** — there are no PrepPush-owned servers in this project.
+- **We do not collect** your name, postal address, or email address.
 - **You choose** whether to connect GitHub and Google Gemini by entering API keys in the extension settings.
+- When Chrome Web Store privacy disclosures mention **authentication information**, that means **your own GitHub personal access token and optional Gemini API key**, which are stored only in Chrome extension storage on your device — not sent to PrepPush.
 
 ## What data the extension accesses
 
@@ -31,6 +33,7 @@ PrepPush does not send data to any other third parties.
 
 ## API keys and security
 
+- “Authentication information” in store listings refers only to **user-supplied API tokens** (GitHub PAT, Gemini key), not account passwords collected by PrepPush.
 - Tokens and API keys are stored using **Chrome extension storage** on your device, not by PrepPush developers.
 - Anyone with access to your computer or Chrome profile could read stored keys — treat your machine as trusted.
 - Use a **classic GitHub PAT** scoped to **repo** only, and revoke it anytime from GitHub settings.
